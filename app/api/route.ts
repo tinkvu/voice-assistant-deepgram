@@ -76,9 +76,7 @@ export async function POST(request: Request) {
             { text: response },
             {
                 model: "aura-asteria-en",
-                encoding: "pcm_f32le",
-                container: "raw",
-                sample_rate: 24000,
+               
             }
         );
 
