@@ -75,7 +75,9 @@ export async function POST(request: Request) {
         const ttsResponse = await deepgram.speak.request(
             { text: response },
             {
-                model: "aura-asteria-en",
+                model: "aura-perseus-en",
+                encoding: "linear16",
+                container: "wav",
                
             }
         );
