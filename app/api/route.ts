@@ -1,28 +1,25 @@
 import { headers } from "next/headers";
-import Groq from "groq-sdk"; // Importing Groq SDK
+import Groq from "groq-sdk";
 import { z } from "zod";
 import { zfd } from "zod-form-data";
 import { createClient } from "@deepgram/sdk";
 import fs from "fs";  // For file operations if needed
 
-// Initialize the Deepgram and Groq clients
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY!);
-const groq = new Groq(); // Assuming Groq SDK is properly initialized
+const groq = new Groq();
 
-// Zod schema to validate incoming form data
 const schema = zfd.formData({
-  input: z.union([zfd.text(), zfd.file()]),  // Input can be text or file
+  input: z.union([zfd.text(), zfd.file()]),
   message: zfd.repeatableOfType(
     zfd.json(
       z.object({
-        role: z.enum(["user", "assistant"]),  // Role can be user or assistant
-        content: z.string(),  // Content is the text of the message
+        role: z.enum(["user", "assistant"]),
+        content: z.string(),
       })
     )
   ),
 });
 
-// Main POST request handler
 export async function POST(request: Request) {
   console.time("transcribe " + (request.headers.get("x-vercel-id") || "local"));
 
@@ -35,9 +32,9 @@ export async function POST(request: Request) {
   console.timeEnd("transcribe " + (request.headers.get("x-vercel-id") || "local"));
   console.time("text completion " + (request.headers.get("x-vercel-id") || "local"));
 
-  // Chat completion using Groq
+  // Assuming you're using some other API or logic for chat completion
   const completion = await groq.chat.completions.create({
-    model: "llama3-8b-8192", // Model being used for chat completion
+    model: "llama3-8b-8192",
     messages: [
       {
         role: "system",
@@ -57,7 +54,7 @@ export async function POST(request: Request) {
       ...data.message,
       {
         role: "user",
-        content: transcript,  // Use the transcript as input for chat completion
+        content: transcript,
       },
     ],
   });
@@ -68,42 +65,42 @@ export async function POST(request: Request) {
   console.time("deepgram request " + (request.headers.get("x-vercel-id") || "local"));
 
   try {
-  // Making the Deepgram TTS request
-  const ttsResponse = await deepgram.speak.request(
-    { text: response },
-    {
-      model: "aura-asteria-en",  // Update model as necessary
-      encoding: "linear16",
-      container: "wav",
+    // Make Deepgram TTS request
+    const ttsResponse = await deepgram.speak.request(
+      { text: response },
+      {
+        model: "aura-asteria-en",  // Update model as necessary
+        encoding: "linear16",
+        container: "wav",
+      }
+    );
+
+    // Get the audio stream and check if it's null
+    const audioStream = await ttsResponse.getStream();
+
+    if (!audioStream) {
+      console.error("No audio stream returned from Deepgram TTS");
+      return new Response("No audio stream", { status: 500 });
     }
-  );
 
-  // Get the audio stream and check if it's null
-  const audioStream = await ttsResponse.getStream();
+    const audioBuffer = await getAudioBuffer(audioStream);  // Convert stream to buffer
 
-  if (!audioStream) {
-    console.error("No audio stream returned from Deepgram TTS");
-    return new Response("No audio stream", { status: 500 });
+    console.timeEnd("deepgram request " + (request.headers.get("x-vercel-id") || "local"));
+
+    return new Response(audioBuffer, {
+      headers: {
+        "Content-Type": "audio/wav",
+        "X-Transcript": encodeURIComponent(transcript),
+        "X-Response": encodeURIComponent(response),
+      },
+    });
+  } catch (error) {
+    console.error("Deepgram TTS error:", error);
+    return new Response("Voice synthesis failed", { status: 500 });
   }
-
-  const audioBuffer = await getAudioBuffer(audioStream);  // Convert stream to buffer
-
-  console.timeEnd("deepgram request " + (request.headers.get("x-vercel-id") || "local"));
-
-  return new Response(audioBuffer, {
-    headers: {
-      "Content-Type": "audio/wav",
-      "X-Transcript": encodeURIComponent(transcript),
-      "X-Response": encodeURIComponent(response),
-    },
-  });
-} catch (error) {
-  console.error("Deepgram TTS error:", error);
-  return new Response("Voice synthesis failed", { status: 500 });
 }
 
-
-// Helper function to convert audio stream to buffer
+// Helper function to handle converting stream to buffer
 async function getAudioBuffer(stream: ReadableStream) {
   const reader = stream.getReader();
   const chunks = [];
@@ -122,7 +119,6 @@ async function getAudioBuffer(stream: ReadableStream) {
   return Buffer.from(dataArray.buffer);
 }
 
-// Helper function to extract user's location from headers
 function location() {
   const headersList = headers();
   const country = headersList.get("x-vercel-ip-country");
@@ -133,21 +129,19 @@ function location() {
   return `${city}, ${region}, ${country}`;
 }
 
-// Helper function to get the current time based on user's timezone
 function time() {
   return new Date().toLocaleString("en-US", {
     timeZone: headers().get("x-vercel-ip-timezone") || undefined,
   });
 }
 
-// Helper function to get the transcript from audio or text input
 async function getTranscript(input: string | File) {
   if (typeof input === "string") return input;
 
   try {
     const { text } = await groq.audio.transcriptions.create({
       file: input,
-      model: "whisper-large-v3",  // Whisper model for transcription
+      model: "whisper-large-v3",
     });
 
     return text.trim() || null;
