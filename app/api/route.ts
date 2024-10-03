@@ -68,34 +68,40 @@ export async function POST(request: Request) {
   console.time("deepgram request " + (request.headers.get("x-vercel-id") || "local"));
 
   try {
-    // Making the Deepgram TTS request
-    const ttsResponse = await deepgram.speak.request(
-      { text: response },
-      {
-        model: "aura-asteria-en",  // Update model as necessary
-        encoding: "linear16",
-        container: "wav",
-      }
-    );
+  // Making the Deepgram TTS request
+  const ttsResponse = await deepgram.speak.request(
+    { text: response },
+    {
+      model: "aura-asteria-en",  // Update model as necessary
+      encoding: "linear16",
+      container: "wav",
+    }
+  );
 
-    // Get the audio stream and convert to buffer
-    const audioStream = await ttsResponse.getStream();
-    const audioBuffer = await getAudioBuffer(audioStream);  // Convert stream to buffer
+  // Get the audio stream and check if it's null
+  const audioStream = await ttsResponse.getStream();
 
-    console.timeEnd("deepgram request " + (request.headers.get("x-vercel-id") || "local"));
-
-    return new Response(audioBuffer, {
-      headers: {
-        "Content-Type": "audio/wav",
-        "X-Transcript": encodeURIComponent(transcript),
-        "X-Response": encodeURIComponent(response),
-      },
-    });
-  } catch (error) {
-    console.error("Deepgram TTS error:", error);
-    return new Response("Voice synthesis failed", { status: 500 });
+  if (!audioStream) {
+    console.error("No audio stream returned from Deepgram TTS");
+    return new Response("No audio stream", { status: 500 });
   }
+
+  const audioBuffer = await getAudioBuffer(audioStream);  // Convert stream to buffer
+
+  console.timeEnd("deepgram request " + (request.headers.get("x-vercel-id") || "local"));
+
+  return new Response(audioBuffer, {
+    headers: {
+      "Content-Type": "audio/wav",
+      "X-Transcript": encodeURIComponent(transcript),
+      "X-Response": encodeURIComponent(response),
+    },
+  });
+} catch (error) {
+  console.error("Deepgram TTS error:", error);
+  return new Response("Voice synthesis failed", { status: 500 });
 }
+
 
 // Helper function to convert audio stream to buffer
 async function getAudioBuffer(stream: ReadableStream) {
