@@ -1,10 +1,13 @@
 import { headers } from "next/headers";
+import Groq from "groq-sdk";
 import { z } from "zod";
 import { zfd } from "zod-form-data";
 import { createClient } from "@deepgram/sdk";
 import fs from "fs";  // For file operations if needed
 
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY!);
+const groq = new Groq();
+
 
 const schema = zfd.formData({
   input: z.union([zfd.text(), zfd.file()]),
