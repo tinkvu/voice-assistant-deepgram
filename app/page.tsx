@@ -30,7 +30,7 @@ export default function Home() {
 			if (isFirefox) vad.pause();
 		},
 		workletURL: "/vad.worklet.bundle.min.js",
-		modelURL: "/silero_vad.onnx",
+		modelURL: "/public/silero_vad.onnx",
 		positiveSpeechThreshold: 0.6,
 		minSpeechFrames: 4,
 		ortConfig(ort) {
