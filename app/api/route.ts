@@ -1,26 +1,28 @@
 import { headers } from "next/headers";
-import Groq from "groq-sdk";
+import Groq from "groq-sdk"; // Importing Groq SDK
 import { z } from "zod";
 import { zfd } from "zod-form-data";
 import { createClient } from "@deepgram/sdk";
 import fs from "fs";  // For file operations if needed
 
+// Initialize the Deepgram and Groq clients
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY!);
-const groq = new Groq();
+const groq = new Groq(); // Assuming Groq SDK is properly initialized
 
-
+// Zod schema to validate incoming form data
 const schema = zfd.formData({
-  input: z.union([zfd.text(), zfd.file()]),
+  input: z.union([zfd.text(), zfd.file()]),  // Input can be text or file
   message: zfd.repeatableOfType(
     zfd.json(
       z.object({
-        role: z.enum(["user", "assistant"]),
-        content: z.string(),
+        role: z.enum(["user", "assistant"]),  // Role can be user or assistant
+        content: z.string(),  // Content is the text of the message
       })
     )
   ),
 });
 
+// Main POST request handler
 export async function POST(request: Request) {
   console.time("transcribe " + (request.headers.get("x-vercel-id") || "local"));
 
@@ -33,9 +35,9 @@ export async function POST(request: Request) {
   console.timeEnd("transcribe " + (request.headers.get("x-vercel-id") || "local"));
   console.time("text completion " + (request.headers.get("x-vercel-id") || "local"));
 
-  // Assuming you're using some other API or logic for chat completion
+  // Chat completion using Groq
   const completion = await groq.chat.completions.create({
-    model: "llama3-8b-8192",
+    model: "llama3-8b-8192", // Model being used for chat completion
     messages: [
       {
         role: "system",
@@ -55,7 +57,7 @@ export async function POST(request: Request) {
       ...data.message,
       {
         role: "user",
-        content: transcript,
+        content: transcript,  // Use the transcript as input for chat completion
       },
     ],
   });
@@ -66,7 +68,7 @@ export async function POST(request: Request) {
   console.time("deepgram request " + (request.headers.get("x-vercel-id") || "local"));
 
   try {
-    // Make Deepgram TTS request
+    // Making the Deepgram TTS request
     const ttsResponse = await deepgram.speak.request(
       { text: response },
       {
@@ -76,7 +78,7 @@ export async function POST(request: Request) {
       }
     );
 
-    // Get audio stream and headers
+    // Get the audio stream and convert to buffer
     const audioStream = await ttsResponse.getStream();
     const audioBuffer = await getAudioBuffer(audioStream);  // Convert stream to buffer
 
@@ -95,7 +97,7 @@ export async function POST(request: Request) {
   }
 }
 
-// Helper function to handle converting stream to buffer
+// Helper function to convert audio stream to buffer
 async function getAudioBuffer(stream: ReadableStream) {
   const reader = stream.getReader();
   const chunks = [];
@@ -114,6 +116,7 @@ async function getAudioBuffer(stream: ReadableStream) {
   return Buffer.from(dataArray.buffer);
 }
 
+// Helper function to extract user's location from headers
 function location() {
   const headersList = headers();
   const country = headersList.get("x-vercel-ip-country");
@@ -124,19 +127,21 @@ function location() {
   return `${city}, ${region}, ${country}`;
 }
 
+// Helper function to get the current time based on user's timezone
 function time() {
   return new Date().toLocaleString("en-US", {
     timeZone: headers().get("x-vercel-ip-timezone") || undefined,
   });
 }
 
+// Helper function to get the transcript from audio or text input
 async function getTranscript(input: string | File) {
   if (typeof input === "string") return input;
 
   try {
     const { text } = await groq.audio.transcriptions.create({
       file: input,
-      model: "whisper-large-v3",
+      model: "whisper-large-v3",  // Whisper model for transcription
     });
 
     return text.trim() || null;
